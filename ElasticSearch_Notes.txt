@@ -1,0 +1,5538 @@
+Elastic search Notes:
+
+Start Elastic Search on Local Machine : C:\Users\rahul_shelke\Downloads\elasticsearch-7.12.0-windows-x86_64\elasticsearch-7.12.0>bin\elasticsearch.bat
+
+Run Elastic search on CMD: curl http://localhost:9200
+
+Run Elasttic search on PowerShell :  Invoke-RestMethod http://localhost:9200
+
+
+Start kibana on Local Machine : C:\Users\rahul_shelke\Downloads\kibana\kibana-7.12.0-windows-x86_64\bin>kibana.bat
+
+Browser Url For Kibana :http://localhost:5601/app/home#/
+
+
+
+Dev Tools
+
+GET /_cluster/health
+       |        |
+       |        |
+      API    Command
+
+
+Listing Nodes that are part of Cluster:
+
+add a query parameter named "v"
+
+GET /_cat/nodes?v
+
+This query parameter instructs Elasticsearch to include a descriptive header within the 
+output, so we can identify each piece of information.
+
+Retrieve more node details
+GET /_nodes
+
+
+Get Cluster Indices
+*******************
+GET /_cat/indices?v  
+******************* 
+
+Remote curl command
+curl -XGET -u elastic:Uff2aSUmp2O96jw2y8P6nizU 
+"https://complete-guide-to-elasticsearch-7e5e2c.es.eastus2.azure.elastic-cloud.com:9243/.kibana/_search"
+ -H 'Content-Type: application/json' -d'{  "query": {    "match_all": {}  }}'
+
+
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
+Create new Index
+
+PUT /pages
+      |
+      |
+   Index name
+
+||||||||||||||||||||||||||||||||||||||||||||||||
+
+Let's now list all of the shards within our cluster
+
+GET /_cat/shards?v
+
+
+*************************************************
+Start another node on same PC
+
+D:\Node-2\elasticsearch-7.12.0\bin>elasticsearch
+
+
+Second way to create Different Node without extracting the ElasticSearch Folder , But by using the same  extracted ElasticFolder
+
+C:\Users\rahul_shelke\Documents\elasticsearch-7.12.0\bin>elasticsearch -Enode.name=node-3 -Epath.data=./node-3/data -Epath.logs=./node-3/logs
+
+
+*****************************************************
+
+Node Roles
+
+Master-Node
+
+Master-Node includes creating and deleting indices, keeping track of nodes, and allocating shards to nodes.
+
+Data-Node
+
+Enables a node to store data.
+The main purpose of having dedicated data nodes is therefore to separate master and data nodes.
+
+
+Ingest Node
+
+*Ingest Node enables a node to run ingest pipelines.
+*An ingest pipeline is a series of steps that should be performed when ingesting a document into Elasticsearch.
+*Ingesting refers to adding a document to an index.
+*The steps are formally referred to as processors, and they may manipulate documents before they are added to an index, 
+ such as adding and removing fields, or changing values.
+*An example would be to ingest a web server's access log, where each request is stored as an Elasticsearch document.
+ We could then transform the visitor's IP address into geographical data such as latitude,longitude, country, etc.
+*Ingest pipelines are useful for relatively simple data transformations.
+
+
+
+If you intend to make use of machine learning, there are two settings related to this feature.
+
+The first one, named "node.ml," identifies a node as a machine learning node if set to "true." This enables the node to run machine learning jobs.
+
+The second setting is named "xpack.ml.enabled," which enables or disables the node's capability of responding to machine learning API requests.
+
+
+*****************************************************
+
+Co-ordination Node. 
+
+By "coordination", referring to how Elasticsearch distributes queries internally.
+Having a node only serve as a coordination node is actually not possible through a single setting, because there is no role available for doing so.
+Instead, this is accomplished by removing the other roles from a node.It is also used as a load balancer.
+
+Configuration:
+
+node.master=false
+node.data=false
+node.ingest=false
+node.ml=false
+xpack.ml.enabled=false
+
+*****************************************************
+
+Voting Only
+
+Configuration: node.voting_only= true|false
+
+*****************************************************
+
+When to Change Node Roles:
+
+1. It depends
+2. Useful for large clusters.
+3. Typically done when optimizing the cluster to scale the number of requests.
+4. Better understand what hardware resources are used for.
+
+
+*****************************************************
+
+Create an index, also configure the number  of shards and replica shards.
+
+Delete an index named page =>   DELETE /pages
+
+Create a index with 2 shards and 2 replicas // practically you should not change the default configuration unless needed. 
+
+PUT /products
+{
+  "settings": {
+    "number_of_shards": 2, "number_of_replicas":2
+  }
+}
+
+***************************************************
+
+Creating a document within an index
+
+We can index a document by sending a POST request to an endpoint consisting of the index name, a slash, and "_doc."
+
+
+POST /products/_doc
+{
+  "name":"Coffee Maker",
+  "price":64,
+  "in_stock":10
+}
+
+The document was added to one of the two shards (if two shards are congifured), being a primary shard, and it was then replicated to its replica shards.
+
+So the document was added to the primary shard and its two replica shards, together forming a replication group.
+
+{
+  "_index" : "products",
+  "_type" : "_doc",
+  "_id" : "LK9tDXkBl-DHJAkp_0Fc",      ||     ( Identifier for the document )
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 2,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+
+
+This identifier was generated automatically because we didn't specify one when we added the document.
+We can do that if we want to, so let's try to add another document with an ID of 100.
+
+PUT /products/_doc/100
+{
+  "name":"Toast Maker",
+  "price":50,
+  "in_stock":5
+}
+
+
+Another thing to note, is that we didn't even have to create the index in advance. There is a setting named "action.auto_create_index"
+that can be configured at the cluster level,which specifies if indices should be created automatically.
+
+The setting defaults to "true," meaning that if we try to add a document to a non-existing index, the index will be created,
+after which the document will be added to it.
+
+*******************************************************
+
+Retrieve documents by Id.
+
+GET /products/_doc/100
+
+*******************************************************
+
+Updating documents by Id
+
+POST /products/_update/100
+{
+  "doc": {
+    "in_stock":3
+  }
+}
+
+The document has now been updated, which we can tell because the "result" key has a value of "updated." 
+This key might also have a value of "noop" if the update did not result in a change, i.e. if we supplied the same value as the document 
+currently contained for the field.
+
+*******************************************************
+
+we can also add new fields to existing documents.( New Field tags )
+
+POST /products/_update/100
+{
+  "doc": {
+    "tags":["electronics"]
+  }
+}
+
+****************************************************
+
+Elasticsearch documents are immutable. What this means, is that documents cannot be changed. But didn't we just change an existing document?
+
+Actually we didn't. We replaced it. The Update API just took care of a couple of things for us.
+
+Specifically, it retrieved the document, changed its fields according to our specification, and reindexed the document with the same ID, 
+effectively replacing it.
+
+So to be clear, the existing document was not updated with any new fields or values, it was replaced entirely.
+
+*****************************************************
+
+Scripted Updates
+
+Enables you to write custom logic while accessing a document's values.
+
+Decrease Instock value by 1.
+
+
+POST /products/_update/100
+{
+  "script": {
+    "source":"ctx._source.in_stock--"
+  }
+}
+
+
+We can also perform assignment on a field.
+
+
+POST /products/_update/100
+{
+  "script": {
+    "source":"ctx._source.in_stock=99"
+  }
+}
+
+
+*****************************************************
+
+We can also define parameters within the request.
+
+For example, if someone purchases four toasters, we could reduce the value of the "in_stock" field by four.
+Let's do just that and pass in a parameter and give it a value of four.
+
+We define parameters within an option named "params," which is an object consisting
+of key-value pairs, where each pair corresponds to a parameter name and value. 
+
+POST /products/_update/100
+{
+  "script": {
+    "source":"ctx._source.in_stock -=params.quantity", "params": {
+      "quantity":4
+    }
+  }
+}
+
+
+NOTE:
+
+
+If we try to update a field value with its existing value.The same is not the case with scripted updates; if we set a field value within a script, the
+
+result will always equal "updated," even if no field values actually changed.
+
+******************************************************
+
+Another way of updating documents
+
+UPSERT
+
+the script will run if the document already exists; otherwise the contents of the "upsert" option is added as a new document.
+
+POST /products/_update/101
+{
+  "script": {
+    "source":"ctx._source.in_stock =0"
+  }
+  , "upsert": {
+    "name":"Blender",
+    "price":30,
+    "in_stock":99
+  }
+}
+
+GET /products/_doc/101
+
+
+************************************************
+
+Replacing documents
+
+Replace the existing document with new document
+
+PUT /products/_doc/101
+{
+  
+  "Product_Name":"Blender",
+  "MRP_Price":30,
+  "in_stock":99
+}
+
+GET /products/_doc/101
+
+************************************************
+
+Deleting Documents
+
+
+DELETE /products/_doc/101
+
+************************************************
+
+
+Understanding Routing
+
+
+Particularly, how did Elasticsearch know on which shard to store the documents? And howdid it know on which shard 
+to find an existing document, be it to retrieve, update, or delete it?
+
+When we index a new document, Elasticsearch uses a simple formula to calculate on which shard the document should be stored.
+
+Formula:  shared_num = hash(_routing) % num_primary_shards
+
+Let's imagine for a moment that we were able to increase the number of shards for the index, and that we 
+increased it to five. We index some more documents, and all is well.
+
+However, when we try to retrieve specific documents based on their ID, Elasticsearch
+is sometimes unable to locate the documents. That's because a document's ID is then
+
+run through the routing formula again, and since one of the formula's variables has
+changed, the result may be different. If that is the case, Elasticsearch tries to find a document on the wrong shard,and thus returns an
+empty response, even though the document does exist. That's not the only reason why additional shards cannot be added to an index, though.
+
+Another problem could be that an index' documents would be distributed very unevenly.
+As a quick reminder, modifying the number of shards requires creating a new index and
+reindexing documents into it. That's made fairly easy with the Shrink and Split APIs
+
+**************************************************
+
+Primary term and  sequence number
+
+The primary term for a replication group is essentially just a counter for how many times the primary shard has changed.
+
+The  sequence number is essentially just a counter that is incremented for each operation,
+
+
+**************************************************
+
+Global and local checkpoints
+
+A global checkpoint exists for each replication group, while a local checkpoint is kept for each replica shard.
+
+This means that any operations containing a sequence number lower than the global checkpoint,
+have already been performed on all shards within the replication group.
+
+If a primary shard fails and rejoins the cluster at a later point, Elasticsearch only needs
+to compare the operations that are above the global checkpoint that it last knew about.
+
+Likewise, if a replica shard fails, only the operations that have a sequence number higher
+than its local checkpoint need to be applied when it comes back.
+
+This essentially means that to recover, Elasticsearch only needs to compare the operations that
+happened while the shard was "gone," instead of the entire history of the replication group.
+
+**********************************************
+
+Understanding Document Versioning
+
+Elastic Search stores a _version metadata with every document.
+ 1. The value is an integer
+ 2. It is incremented by one when modifying the document.
+
+
+Types of versioning 
+
+1. Internal Versioning
+2. External Versioning
+
+
+We need our update to fail if the document has been modified since we retrieved it.This is where versioning comes in.
+
+To do that, we use the "if_seq_no" and "if_primary_term" parameters.
+
+
+Traditionaly _version was used to prevent this , now we use the "if_seq_no" and "if_primary_term" parameters.
+
+
+if_primary_term=1 if_seq_no=7  of the indexed document with id 100
+
+POST /products/_update/100?if_primary_term=1&if_seq_no=7
+{
+  "doc": {
+    "in_stock":125
+  }
+}
+
+**********************************************
+
+Update by Query
+
+Suppose that someone has purchased multiple products and we need to reduce the "in_stock"
+
+field value by one for each of the products. For simplicity, we will just assume that each
+
+product has been ordered with a quantity of one. We could of course update each document
+
+separately, but let's update them within a single query instead.
+
+
+POST /products/_update_by_query
+{
+  "script":{
+    "source":"ctx._source.in_stock--"
+  }
+  , "query": {
+    "match_all": {}
+  }
+}
+
+
+GET /products/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+**********************************************
+
+Delete documents
+
+Lets now delete multiple documents within a single query.
+
+The Delete By Query works in exactly the same way as the Update By Query.
+
+POST /products/_delete_by_query
+{
+   "query":{
+     "match_all":{}
+   }
+
+}
+
+
+
+**********************************************
+
+
+Introduction to Bulk Api
+
+The bulk API expects data formatted using the NDJSON  specification.
+
+
+
+Note that specifying the document's ID is optional; if you leave it out, Elasticsearch will automatically generate one for you.
+
+The difference is that the "create" action will fail if the document already exists, which is not the case for the "index"
+
+action. If you use the "index" action, the document will be added if it doesn't already exist; otherwise it will be replaced.
+
+
+POST /_bulk
+{"index":{ "_index":"products","_id":200}}
+{"name":"Coffee Maker", "price":1000, "in_stock": 77}
+{"create":{ "_index":"products","_id":201}}
+{"name":"Milk Frother", "price":80, "in_stock": 80}
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||
+
+Multiple actions on index
+
+POST /_bulk
+{"update":{ "_index":"products","_id":201}}
+{ "doc": { "price":999 }}
+{"index":{ "_index":"products","_id":200}}
+
+
+
+So far, we have been using the "_bulk" endpoint without specifying the index name,because we did this within each action.
+That's useful for situations where there may be actions for different indices. If all actions are for the same index, however, we can specify the
+index name within the request path instead,
+
+
+POST /products/_bulk
+{"update":{ "_id":201}}
+{ "doc": { "price":999 }}
+{"delete":{"_id":200}}
+
+
+when using the Bulk API. First, the "Content-Type"  header of the HTTP request should be set to the value.
+
+Content-Type : application/x-ndjson 
+
+If a single action fails, this will not affect  the other actions, as they will proceed as normal.
+
+
+********************************************
+
+Importing data with Curl (postman)
+
+
+POST                 http://localhost:9200/products/_bulk
+
+
+Body   Binary-data   (select the File)
+ 
+Content-Type : application/json
+
+********************************************
+
+Analysis or Text Analysis 
+
+
+That’s because the concept is really only applicable to text values.
+
+
+Analyzer consists of 
+
+1. Character Filter
+2. Tokenizer 
+3. Token Filter
+
+
+A character filter receives the original text and may transform it by adding, removing, or changing characters.
+An analyzer may have zero or more character filters, and they are applied in the order in which they are specified.
+
+
+Tokenizer 
+An example of that could be to split a sentence into words by splitting the string whenever a whitespace is encountered.
+
+Token Filters
+These receive the tokens that the tokenizer produced as input and they may add, remove, or modify tokens.
+
+
+********************************************
+
+Understanding analyzing API
+
+Analyze the text
+
+POST /_analyze
+{
+  "text":" 2 guys walks into  a bar, but the third ....DUCKS! :-)",
+  "analyzer": "standard"
+}
+
+Creating a custom Analyzer 
+
+POST /_analyze
+{
+  "text":" 2 guys walks into  a bar, but the third ....DUCKS! :-)",
+  "char_filter": [],
+  "tokenizer": "standard",
+  "filter": ["lowercase"]
+}
+
+*******************************************
+
+Inverted Index
+
+
+When text fields are analyzed, the resulting terms are placed into an inverted index.
+
+This happens for every “text” field, so each field has a dedicated inverted index.
+
+An inverted index is a sorted mapping of the unique terms from all documents containing a value for a given field, 
+to which documents contain those terms.
+
+Inverted indices are created and maintained by Apache Lucene, which Elasticsearch builds on top of.
+
+*****************************************
+
+Introduction to Mapping  
+
+Deals with Data types
+
+Mapping defines the structure of documents and how they are indexed and stored.
+
+**********************************************************
+
+Overview of Data Types
+
+boolean,integer,long,text,date,float,double,object,short.
+
+
+ip for storing IP addresss
+
+Object - Used for any JSON object.
+
+The way this is mapped, is that a “properties” key is added for objects instead of specifying
+
+the “type” key as with other data types.
+
+***************************
+**************************
+
+“nested,” which is a specialized version of the “object” data type. The purpose of it is to maintain the relationship between 
+object values when an array of objects is indexed.
+
+
+“keyword.” This data type should be used for fields on which you want to search for exact values.
+this data type is used for filtering, sorting, and aggregating documents.
+
+
+*****************************************************
+
+Keyword Analyzer
+
+
+
+For “keyword” fields, however, an analyzer named “keyword” is used instead.
+
+This analyzer is actually a so-called no-op analyzer, meaning that it doesn’t do anything.
+
+That’s why the “keyword” data type is used for exact matching and things like sorting and aggregations.
+
+Basically structured data, which could be e-mail addresses, order statuses, product tags, etc.
+
+
+*************************************************
+
+Understanding Type Coercion
+
+
+PUT /coercion_test/_doc/1
+{
+  "price":7.4
+}
+
+PUT /coercion_test/_doc/2
+{
+  "price":"7.4"
+}
+
+PUT /coercion_test/_doc/3
+{
+  "price":"7.4m"
+}
+
+*************************************************
+
+Understanding arrays
+
+POST /_analyze
+{
+  "text":["Strings are simply","mereged together "],
+  "analyzer": "standard"
+}
+
+
+{
+  "tokens" : [
+    {
+      "token" : "strings",
+      "start_offset" : 0,
+      "end_offset" : 7,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "are",
+      "start_offset" : 8,
+      "end_offset" : 11,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "simply",
+      "start_offset" : 12,
+      "end_offset" : 18,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "mereged",                               
+      "start_offset" : 19,		  || here the offset does not start from zero. because the contents of the array are concatenated.
+      "end_offset" : 26,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    },
+    {
+      "token" : "together",
+      "start_offset" : 27,
+      "end_offset" : 35,
+      "type" : "<ALPHANUM>",
+      "position" : 4
+    }
+  ]
+}
+This means that the strings are indeed treated as a single string and not as multiple values.
+
+There is one constraint when using arrays that you should be aware of; all of the values within the array must be of the same data type.
+
+Arrays are flattened during indexing. [1, [2,3,4]]  =====>  [1,2,3,4]
+
+
+****************************************
+
+Adding Explicit Mapping.
+
+
+started actually creating some mapping! You can add field mappings both when creating an index and afterwards.
+
+As you know, “keyword” fields are used for filtering and aggregations, and for exact matches.
+
+
+We have created an index named reviews with mappings
+
+PUT /reviews
+{
+  "mappings": {
+    "properties": {
+      
+      "rating":{"type": "float"},
+      "content":{"type": "text"},
+      "product_id":{"type": "integer"},
+      
+      "author":{
+  
+        "properties": {
+          "first_name":{"type":"text"},
+          "last_name":{"type":"text"},
+          "email":{"type":"keyword"}
+        }
+      }
+    }
+  }
+}
+
+''''''''''''''''''''''''''''''''''''''''''
+PUT /reviews/_doc/1
+{
+      "rating":5.0,
+      "content":"OutStanding course , Bo really taught ne Elastic Search",
+      "product_id":123,
+      
+      "author":{
+          "first_name":"rahul",
+          "last_name":"shelke",
+          "email":"rahulshelke3099@gmail.com"
+      }
+}
+
+***********************************************************
+
+
+Retreving  Mappings
+
+
+To retrieve the mapping for an index, we can send a GET request to the Mapping API as follows  :: =>
+
+GET /reviews/_mapping
+
+
+
+It is also possible to retrieve the mapping for a specific field.
+
+GET /reviews/_mapping/field/content
+
+
+Mapping for fields inside object
+
+GET /reviews/_mapping/field/author.email
+
+
+******************************************************
+
+Using dot notation in field names
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "rating":{"type": "float"},
+      "content":{"type": "text"},
+      "product_id":{"type": "integer"},
+      "author.first_name":{"type":"text"},
+      "author.last_name":{"type":"text"},
+      "author.email":{"type":"keyword"}
+    }
+   }
+}
+
+GET /reviews_dot_notation/_mapping
+
+
+***************************************
+
+Adding mappings to existing field.
+
+
+Let’s add the mapping for a “created_at” field.
+
+We will still use the PUT HTTP verb, but this time we will invoke the Mapping API.
+
+
+PUT /reviews/_mapping
+{
+  "properties":
+  {
+    "created_at":{"type":"date"}
+  }
+}
+
+
+**************************************
+
+
+How elastic search handles Dates
+
+
+
+Dates may be specified in one of three ways;
+
+1. specially formatted strings,
+2. a long number representing the number of milliseconds since the epoch,
+3. an integer representing thenumber of seconds since the epoch.
+
+epoch refers to the 1st of January 1970.
+
+Elasticsearch expects one of three formats:
+
+ a date without time,
+ a date with time, or
+ a long representing the number of milliseconds since the epoch.(long)
+
+
+Dates are stored as a long number representing the number of milliseconds since the epoch.
+If a date includes a timezone, Elasticsearch will convert the date to UTC first.
+
+
+The date conversion will also happen for search queries; suppose that we send a query to match
+reviews written after a given date and we supply the date as a string.
+This date will then be converted to a long number before the search process begins.
+
+
+
+*******************************************************
+
+How missing fields are handled.
+
+
+All fields in ElasticSearch are Optional.
+You can leave out a field while indexing documents.
+Adding a field mapping does not make a field required.
+Searches automatically handles missing fields.
+
+******************************************************
+
+Overview of mapping parameters
+
+
+1. Format parameter
+Used to customize the format for date field. ISO 8601 is supported by almost all systems.
+
+We can completely customize the date format by specifying a format that is compatible with Java’s DateFormatter class.
+
+PUT /reviews
+{
+  "mappings": {
+    "properties": {
+      
+      "created_on":{"type": "float","format":"dd/MM/YYYY"},
+    }
+  }
+}
+
+
+2. Properties parameter.
+
+Define nested fields for object and nested fields.
+
+
+3 Coercion parameter
+
+Used to enable or disable coercion of values (enabled by default )
+Disable coerce
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "rating":{"type": "float","coerce":false},
+    }
+   }
+}
+
+
+It’s also possible to configure coercion at the index level so you don’t have to specify the “coercion” parameter for every field.
+
+PUT /reviews_dot_notation
+{
+  "settings":{
+   "index.mapping.coerce":false
+	}
+
+   "mappings": {
+    "properties": {
+      "rating":{"type": "float","coerce":true},    ||   overwrite it if you want to
+    }
+   }
+}
+
+
+
+Fields inherit this index level setting, but you can still overwrite it if you want to.
+
+4 .  "doc_values" parameter
+
+inverted index is excellent for searching for terms, it doesn’t perform well for most other use cases.
+
+we want to sort the results alphabetically, or to aggregate values. Its an "Uninverted Index".
+
+It is a additional data structure, not a replacement .
+means for text field there will be many data structure , depending on the query it will search the appropriate data structure.
+
+Because you have the option of disabling it with the “doc_values” mapping parameter.
+The main reason for doing this would be to save disk space, because this data structure would then not be built and stored on disk.
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "email":{"type": "float","doc_values":false},
+    }
+   }
+}
+
+
+5 . Norms parameter
+
+oftentimes we will want to not just apply a filter to documents, but also rank them based on how well they match a given query.
+
+Part of what enables Elasticsearch to calculate relevance scores for documents, is these norms.
+
+
+Because they take up quite a lot of disk space, just like doc values do.
+
+Not storing norms saves disk space, but also removes the ability to use a field for relevance scoring.
+
+That’s why you should only disable norms for fields that you won’t use for relevance scoring.
+
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "tags":{"type": "text","norms":false},
+    }
+   }
+}
+
+
+
+6. index parameter
+
+“index” parameter to “false.”
+
+By doing so, the field values are not indexed at all, and the field therefore cannot be used within search queries.
+This parameter is useful if you have a field that you don’t need to search, but you still want to store the field as part of the “_source” object.
+
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "server_id":{"type": "text","index":false},
+    }
+   }
+}
+
+7. null_value  parameter.
+
+NULL values are ignored in Elasticsearch, meaning that they cannot be indexed or searched.
+
+PUT /reviews_dot_notation
+{
+   "mappings": {
+    "properties": {
+      "partner_id":{"type": "keyword","null_value":NULL},
+    }
+   }
+}
+
+8. copy_to  parameter
+
+
+One important thing to note is that the copied values will not be part of the “_source” object.
+
+first_name , last_name 
+
+full_name= first_name + last_name ,
+
+
+PUT /sales
+{
+   "mappings": {
+    "properties": {
+      "first_name":{"type": "text","copy_to":"full_name"},
+      "last_name":{"type": "text","copy_to":"full_name"},
+      "full_name":{"type": "text"}
+    }
+}
+}
+
+
+POST sales/_doc
+{
+   "first_name":"rahul",
+   "last_name":"Shelke"
+
+}
+
+GET /sales/_doc/La-THnkBl-DHJAkpg0Fr
+
+
+output
+
+{
+  "_index" : "sales",
+  "_type" : "_doc",
+  "_id" : "La-THnkBl-DHJAkpg0Fr",
+  "_version" : 1,
+  "_seq_no" : 0,
+  "_primary_term" : 1,
+  "found" : true,
+  "_source" : {
+    "first_name" : "rahul",
+    "last_name" : "Shelke"
+  }
+}
+
+
+
+*******************************************************
+
+Updating Existing Mappings
+
+
+Updatig product_id  Data type from number to Keyword
+
+PUT /reviews_dot_notation/_mapping
+{
+    "properties": {
+      "product_id":{"type": "keyword"}
+   }
+}
+
+using this it gives Error with status code : 400
+
+
+The reason is that in general, we cannot update field mappings in Elasticsearch.We can add new field mappings as we did earlier,
+ but once you have added a field mapping, you are pretty much stuck with it.
+
+There is one exception, though; some mapping parameters can be updated, but only a few of them.
+
+
+
+“ignore_above” parameter.
+
+This parameter ignores strings longer than the specified value such that they will not
+
+be indexed or stored.
+
+PUT /reviews_dot_notation/_mapping
+{
+    "properties": {
+      "product_id":{"type": "text","ignore_above":256}
+   }
+}
+
+
+***************************************
+
+
+Reindexing documents with Reindex API
+
+
+This API does the heavy lifting of moving documents from one index to another.
+
+We will need to define two parameters named “source” and “dest,” both being objects.
+
+
+
+POST /_reindex
+{
+  "source": {"index": "reviews"},
+  
+  "dest": {"index": "reviews_new"}
+}
+
+GET /reviews_new/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+Remember that this object contains the original values that were supplied at index time.
+Us changing the data type doesn’t cause the “_source” object to be modified.
+
+
+To delete index 
+
+To do that, we will use the Delete by Query API.
+
+POST /reviews_new/_delete_by_query
+{
+  "query":{
+    "match_all":{}
+  }
+  
+}
+
+Now using the below query product_id is 
+
+POST /_reindex
+{
+  "source": {"index": "reviews"},
+  "dest":{"index": "reviews_new"},
+  "script": {
+      "source":"""
+           if(ctx._source.product_id!=null)
+           {
+            ctx._source.product_id=ctx._source.product_id.toString()
+           }   
+      """
+  }
+}
+
+
+
+
+OUTPUT of Search Query
+
+{
+  "took" : 487,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "reviews_new",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "author" : {
+            "last_name" : "shelke",
+            "first_name" : "rahul",
+            "email" : "rahulshelke3099@gmail.com"
+          },
+          "product_id" : "123",                  || now product_id is in string format
+          "rating" : 5.0,
+          "content" : "OutStanding course , Bo really taught ne Elastic Search"
+        }
+      }
+    ]
+  }
+}
+
+*******************************************
+
+
+Removing fields (source filtering)
+POST /_reindex
+{
+  "source": {
+    "index": "reviews",
+    "_source": ["content", "created_at", "rating"]
+  },
+  "dest": {
+    "index": "reviews_new"
+  }
+}
+
+*****************************************
+
+Changing a field's name
+
+Besides removing a key, the “remove” method also returns its value, which is why the assignment works.
+
+
+POST /_reindex
+{
+  "source": {
+    "index": "reviews"
+  },
+  "dest": {
+    "index": "reviews_new"
+  },
+  "script": {
+    "source": """
+      # Rename "content" field to "comment"
+      ctx._source.comment = ctx._source.remove("content");
+    """
+  }
+}
+
+*************************************
+
+Ignore reviews with ratings below 4.0
+
+
+Just like the Update by Query and Delete by Query APIs, the Reindex API also performs the operations
+in batches by using the Scroll API.
+
+POST /_reindex
+{
+  "source": {
+    "index": "reviews"
+  },
+  "dest": {
+    "index": "reviews_new"
+  },
+  "script": {
+    "source": """
+      if (ctx._source.rating < 4.0) {
+        ctx.op = "noop"; # Can also be set to "delete"
+      }
+    """
+  }
+}
+
+*********************************
+
+Defining Field Aliases
+
+
+
+when reindexing documents into a new index.
+
+That’s useful if you need to reindex documents anyway, but if you have millions of documents,
+
+it’s probably not worth the effort to reindex them just for the sake of renaming a field.
+
+
+A field alias is useful in situations where you want to rename a field but don’t want to reindex data
+just for that purpose.
+
+
+PUT /reviews/_mapping
+{
+  "properties": {
+    "comment": {
+      "type": "alias",
+      "path": "content"
+    }
+  }
+}
+
+
+
+GET /reviews/_search
+{
+  "query": {
+    "match": {
+      "comment": "outstanding"
+    }
+  }
+}
+
+
+
+It is also possible to configure index aliases at the cluster level,
+
+******************************************
+
+Multi-field mappings
+
+Add keyword mapping to a text field
+we cannot run aggregations on “text” fields.
+
+
+This allows us to use the “text” mapping for full-text searches and the “keyword” 
+mapping for aggregations and sorting
+This is probably the most common use case of multi-fields, but it is definitely not the only one.
+
+
+Add keyword mapping to a text field
+PUT /multi_field_test
+{
+  "mappings": {
+    "properties": {
+      "description": {
+        "type": "text"
+      },
+      "ingredients": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+Index a test document
+POST /multi_field_test/_doc
+{
+  "description": "To make this spaghetti carbonara, you first need to...",
+  "ingredients": ["Spaghetti", "Bacon", "Eggs"]
+}
+Retrieve documents
+GET /multi_field_test/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+Querying the text mapping
+GET /multi_field_test/_search
+{
+  "query": {
+    "match": {
+      "ingredients": "Spaghetti"
+    }
+  }
+}
+
+Querying the keyword mapping
+GET /multi_field_test/_search
+{
+  "query": {
+    "term": {
+      "ingredients.keyword": "Spaghetti"
+    }
+  }
+}
+
+
+
+*********************************************
+
+Index Template
+
+An index template defines settings and/or mappings for indices that match one or more patterns.
+
+
+A pattern is a wildcard expression that is matched against an index name whenever a new
+index is created, and so index templates only apply to new indices.
+
+
+We can add a new index template by using the Index Template API together with the PUT HTTP verb.
+The request path is “_template” followed by the name of the index template.
+
+If a new index matches the pattern of an index template, those settings and mappings will be used.
+However, if the request to create the new index also specifies settings or mappings,
+the two will be merged together.
+
+In case of duplicates, the configuration from the create index request will take precedence
+and override the value specified within the index template.
+
+Index templates can be updated with new mappings and settings.
+
+
+Adding an index template named access-logs
+PUT /_template/access-logs
+{
+  "index_patterns": ["access-logs-*"],
+  "settings": {
+    "number_of_shards": 2,
+    "index.mapping.coerce": false
+  }, 
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "url.original": {
+        "type": "keyword"
+      },
+      "http.request.referrer": {
+        "type": "keyword"
+      },
+      "http.response.status_code": {
+        "type": "long"
+      }
+    }
+  }
+}
+
+Adding an index matching the index template's pattern
+
+PUT /access-logs-2020-01-01
+
+Verify that the mapping is applied
+
+GET /access-logs-2020-01-01
+
+
+*******************************************
+
+Introduction to Commom Elastic Schema (ECS)
+
+
+ECS is a specification that defines a set of common fields, including their names and
+how they should be mapped in Elasticsearch.
+
+Note that the @timestamp field is used for events;
+
+ECS means the common fields are named the same thing.
+Eg. @timestamp
+
+In ECS terminology, documents are referred to as events.
+ECS is mostly useful if you are storing standard events such as web server logs, operating
+system metrics, geospatial data, etc.
+
+
+
+*******************************************
+
+Dynamic Mapping.
+
+The first time Elasticsearch encounters a field, it will automatically create a field
+mapping for it, which is then used for subsequent indexing requests.
+
+
+“keyword” mapping should be  used for exact matches, aggregations, and sorting.
+
+
+
+****************************************
+
+Combining Explicit and Dynamic Mapping
+
+Dynamic mapping is enabled by Default.
+
+
+Create index with one field mapping
+
+PUT /people
+{
+  "mappings": {
+    "properties": {
+      "first_name": {
+        "type": "text"
+      }
+    }
+  }
+}
+Index a test document with an unmapped field
+
+POST /people/_doc
+{
+  "first_name": "Bo",
+  "last_name": "Andersen"
+}
+
+
+Retrieve mapping
+
+GET /people/_mapping
+Clean up
+DELETE /people
+
+
+******************************************
+
+Configure Dynamic Mapping.
+
+Disable dynamic mapping
+
+PUT /people
+{
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "first_name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+Let’s now see what happens when we index a document containing an additional field compared to the mapping.
+
+Setting the “dynamic” setting to “false” instructs Elasticsearch to ignore new fields.
+Notice how I said “ignore” and not “reject.”
+
+
+When the “dynamic” setting is set to “false,” new fields must be mapped explicitly if we
+want the field values to be indexed and thereby searchable.
+
+
+2. 
+
+Set dynamic mapping to strict
+
+PUT /people
+{
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "first_name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+
+
+
+Index a test document
+POST /people/_doc
+{
+  "first_name": "Bo",
+  "last_name": "Andersen"
+}
+
+
+Indeed we get an error stating that the “last_name” field is not allowed because the “dynamic”
+setting is set to “strict.”
+
+The “other” field stores many different fields depending on the product, so we cannot
+map all of the possible fields in advance.Instead, we can enable dynamic mapping for just
+ that particular field, overriding the  inherited value.
+
+
+************************************************
+
+Numeric Detection
+
+numeric_detection: false or true
+
+
+When numeric detection is enabled, Elasticsearch will check the contents of strings to see if they contain only numeric values.
+
+If that is the case, the data type of a field will be set to either “float” or “long”
+
+when mapped through dynamic mapping.
+
+
+
+Date Detection
+
+date_detection:false or true
+
+***********************************************
+
+Dynamic Template
+
+
+Another way in which we can configure dynamic mapping is by using so-called dynamic templates.
+
+A dynamic template consists of one or more conditions along with the mapping a field
+should use if it matches the conditions.
+
+Dynamic templates are used when dynamic mapping is enabled and a new field is encountered
+without any existing mapping.
+
+
+Let’s now index a simple document with a field that matches the condition that we defined.
+By default, this new field would be mapped as a “long” field, so if everything works as intended, 
+we should see it being mapped as an “integer” instead.
+
+Let’s inspect the mapping and take a look.
+Indeed we can see that the field was mapped as an “integer,” so the dynamic template worked as intended.
+
+Dynamic templates
+Map whole numbers to integer instead of long
+
+PUT /dynamic_template_test
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "integers": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "integer"
+          }
+        }
+      }
+    ]
+  }
+}
+Test the dynamic template
+
+POST /dynamic_template_test/_doc
+{
+  "in_stock": 123
+}
+
+
+Retrieve mapping (and dynamic template)
+
+
+GET /dynamic_template_test/_mapping
+
+Modify default mapping for strings (set ignore_above to 512)
+
+PUT /test_index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 512
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+
+
+*******************************************
+
+
+match and unmatch parameters
+
+
+
+These parameters enable us to specify conditions for the name of the field being evaluated.
+
+The “match” parameter is used to specify a pattern that the field name must match.
+
+The “unmatch” parameter can then be used to specify a pattern that excludes certain
+
+fields that are matched by the “match” parameter.
+
+
+Using match and unmatch
+
+PUT /test_index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_only_text": {
+          "match_mapping_type": "string",
+          "match": "text_*",
+          "unmatch": "*_keyword",
+          "mapping": {
+            "type": "text"
+          }
+        }
+      },
+      {
+        "strings_only_keyword": {
+          "match_mapping_type": "string",
+          "match": "*_keyword",
+          "mapping": {
+            "type": "keyword"
+          }
+        }
+      }
+    ]
+  }
+}
+
+POST /test_index/_doc
+{
+  "text_product_description": "A description.",
+  "text_product_id_keyword": "ABC-123"
+}
+
+Setting match_pattern to regex
+
+
+PUT /test_index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "names": {
+          "match_mapping_type": "string",
+          "match": "^[a-zA-Z]+_name$",
+          "match_pattern": "regex",
+          "mapping": {
+            "type": "text"
+          }
+        }
+      }
+    ]
+  }
+}
+
+POST /test_index/_doc
+{
+  "first_name": "John",
+  "middle_name": "Edward",
+  "last_name": "Doe"
+}
+
+****************************************************
+
+path_match  and path_unmatch
+
+these parameters match the full field path, instead of just the field name itself.
+
+Using path_match
+
+PUT /test_index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "copy_to_full_name": {
+          "match_mapping_type": "string",
+          "path_match": "employer.name.*",
+          "mapping": {
+            "type": "text",
+            "copy_to": "full_name"
+          }
+        }
+      }
+    ]
+  }
+}
+
+POST /test_index/_doc
+{
+  "employer": {
+    "name": {
+      "first_name": "John",
+      "middle_name": "Edward",
+      "last_name": "Doe"
+    }
+  }
+}
+Using placeholders
+
+PUT /test_index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "no_doc_values": {
+          "match_mapping_type": "*",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "index": false
+          }
+        }
+      }
+    ]
+  }
+}
+
+POST /test_index/_doc
+{
+  "name": "John Doe",
+  "age": 26
+}
+
+
+
+A dynamic template is therefore a way to dynamically add mappings for fields that match certain
+criteria, where an index template adds a fixed set of field mappings.
+
+
+
+***********************************
+
+
+Mapping Recommendations
+
+1. 
+
+First and foremost, I recommend that you make use of explicit mapping - at least for production clusters.
+
+Dynamic mapping is convenient during development, but the generated field mappings are often
+not the most efficient ones.
+
+If you intend to store a high number of documents, you can typically save a lot of disk space
+with more optimized mappings, for instance.
+
+
+2.
+
+set the “dynamic” parameter to “strict”  and not just “false.”
+
+Setting it to “false” will enable you to add fields for which there are no mappings.
+
+The fields are then simply ignored in terms of indexing.
+Using strict mapping essentially means that you are always in control.
+
+
+
+3.
+
+not always map “text” fields as both “text” and “keyword” unless you need to do so.
+
+
+4. 
+
+This happens with dynamic mapping by default, but it is often not necessary and just takes
+up additional disk space.
+
+perform full-text searches on it?  :  add text-mapping
+aggregations, sorting, or filtering based on exact values?  : add keyword mapping.
+
+If you want to do both, you should map the field in both ways, but that is typically not necessary.
+
+
+5.
+
+Disable coercion
+
+6.
+
+always provide the correct data types in the JSON objects that you send to Elasticsearch.
+
+7.
+
+If you add explicit field mappings for numeric fields, then you should consider which kind of numbers you
+will index.
+
+Sometimes it is not necessary to map a field as “long,” because an “integer” might be enough.
+
+
+8.
+
+Likewise, “double” requires twice as much disk space as “float,” so if you don’t
+need really high precision, then you should be fine using “float.”
+
+9.
+
+If you know that you won’t use a field for sorting, aggregations, and scripting, you
+can set “doc_values” to “false” and save quite a bit of disk space.
+
+If you won’t use a field for relevance scoring, then you can set “norms” to “false”
+to avoid storing data that is only used for relevance scoring.
+
+
+10.
+
+if you won’t use a field for filtering, you can disable indexing by setting “index”
+to “false.”
+
+
+***********************************
+
+
+Stemming and stop words
+
+
+Stemming is the process of reducing words to their root form.
+
+For example, the word “loved” can be stemmed to “love,” and “drinking” can be stemmed to “drink.”
+
+
+stop words
+
+stop words are words that are filtered out in the analysis process.
+
+A couple of examples are the words “a,” “the,” “at,” “of,” and “on.”
+
+
+**********************************
+
+
+Analyzers and search queries
+
+
+The point is that the query is analyzed in the same way as the field values that were indexed.
+
+********************************
+
+Built-in Analyzers
+
+
+Elasticsearch comes with a number of built-in analyzers.
+These are simply pre-configured combinations of character filters, token filters, and a tokenizer.
+
+Standard Analyzer
+
+It splits text into terms at word boundaries, and also removes punctuation in the process.
+That’s done with the “standard” tokenizer.
+
+
+it also lowercases letters with the “lowercase” token filter.
+
+It actually contains the “stop” token filter as well, for removing stop words.
+This filter is disabled by default, but can be enabled through configuration, 
+
+
+Different Analyzers are 
+
+whitespace analyzer 
+
+pattern analyzer
+
+keyword analyzer
+
+
+Standard Analyzer
+The standard analyzer divides text into terms on word boundaries, as defined by the Unicode Text 
+Segmentation algorithm. It removes most punctuation, lowercases terms, and supports removing stop words.
+
+Simple Analyzer
+The simple analyzer divides text into terms whenever it encounters a character which is not a letter.
+It lowercases all terms.
+
+Whitespace Analyzer
+The whitespace analyzer divides text into terms whenever it encounters any whitespace character.
+It does not lowercase terms.
+
+Stop Analyzer
+The stop analyzer is like the simple analyzer, but also supports removal of stop words.
+
+Keyword Analyzer
+The keyword analyzer is a “noop” analyzer that accepts whatever text it is given and outputs the exact 
+same text as a single term.
+
+Pattern Analyzer
+The pattern analyzer uses a regular expression to split the text into terms.
+It supports lower-casing and stop words.
+
+Language Analyzers
+Elasticsearch provides many language-specific analyzers like english or french.
+
+Fingerprint Analyzer
+The fingerprint analyzer is a specialist analyzer which creates a fingerprint which can be used for
+duplicate detection.
+
+
+***********************************
+
+
+Create a custom Analyzer
+
+we need to set the type to “custom” to tell Elasticsearch that we are building
+our own analyzer.
+
+we simply specify the name of the character filter within a parameter named “char_filter,”
+
+
+Creating custom analyzers
+Remove HTML tags and convert HTML entities
+
+
+POST /_analyze
+{
+  "char_filter": ["html_strip"],
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+Add the standard tokenizer
+POST /_analyze
+{
+  "char_filter": ["html_strip"],
+  "tokenizer": "standard",
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+Add the lowercase token filter
+POST /_analyze
+{
+  "char_filter": ["html_strip"],
+  "tokenizer": "standard",
+  "filter": [
+    "lowercase"
+  ],
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+
+Add the stop token filter
+This removes English stop words by default.
+
+POST /_analyze
+{
+  "char_filter": ["html_strip"],
+  "tokenizer": "standard",
+  "filter": [
+    "lowercase",
+    "stop"
+  ],
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+
+Add the asciifolding token filter
+Convert characters to their ASCII equivalent.
+
+POST /_analyze
+{
+  "char_filter": ["html_strip"],
+  "tokenizer": "standard",
+  "filter": [
+    "lowercase",
+    "stop",
+    "asciifolding"
+  ],
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+
+Create a custom analyzer named my_custom_analyzer
+
+PUT /analyzer_test
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "type": "custom",
+          "char_filter": ["html_strip"],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "stop",
+            "asciifolding"
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+Configure the analyzer to remove Danish stop words
+
+To run this query, change the index name to avoid a conflict. Remember to remove the comments. 😉
+
+PUT /analyzer_test
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "danish_stop": {
+          "type": "stop",
+          "stopwords": "_danish_"
+        }
+      },
+      "char_filter": {
+        # Add character filters here
+      },
+      "tokenizer": {
+        # Add tokenizers here
+      },
+      "analyzer": {
+        "my_custom_analyzer": {
+          "type": "custom",
+          "char_filter": ["html_strip"],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "danish_stop",
+            "asciifolding"
+          ]
+        }
+      }
+    }
+  }
+}
+
+Test the custom analyzer
+
+POST /analyzer_test/_analyze
+{
+  "analyzer": "my_custom_analyzer", 
+  "text": "I&apos;m in a <em>good</em> mood&nbsp;-&nbsp;and I <strong>love</strong> açaí!"
+}
+
+**************************************
+
+Adding analyzers to existing indices
+
+What if you have already created an index and you want to add an analyzer to it?
+
+
+We can do that by using the Update Index Settings API as follows.
+
+
+An open index is one that serves requests, and a closed index is… well, the opposite.
+
+
+In the context of index settings, there are two kinds of settings; static and dynamic.
+
+Dynamic settings can be changed on an open index, i.e. an index that is actively serving requests.
+
+Static settings, on the other hand, can only be changed at index creation time, or while an index is closed.
+
+
+Close analyzer_test index
+
+POST /analyzer_test/_close
+
+
+Any attempt to search or index documents will be refused while the index is in the closed state.
+Having closed the index should allow us to add the analyzer, so let’s run the query again.
+
+To enable the index to handle indexing and search requests, we need to open it.
+That’s as simple as invoking the Open Index API.
+
+Add new analyzer
+
+PUT /analyzer_test/_settings
+{
+  "analysis": {
+    "analyzer": {
+      "my_second_analyzer": {
+        "type": "custom",
+        "tokenizer": "standard",
+        "char_filter": ["html_strip"],
+        "filter": [
+          "lowercase",
+          "stop",
+          "asciifolding"
+        ]
+      }
+    }
+  }
+}
+Open analyzer_test index
+POST /analyzer_test/_open
+
+Retrieve index settings
+
+GET /analyzer_test/_settings
+
+
+You therefore need to do the same thing if you want to modify character filters, tokenizers,
+or token filters.
+
+That typically goes hand in hand with modifying an analyzer as well, though.
+Even though the process of closing and reopening an index is fairly quick, it might not be
+an option for some production systems.
+
+@@@  Now that you know how to add new analyzers to existing indices
+
+
+
+********************************
+
+UPDATING ANALYZERS
+
+what about updating analyzers?
+Let’s take a look.
+
+default behavior is overridden when specifying the “analyzer” parameter.
+The “keyword” analyzer is then used instead, which essentially means that the search query
+will be left intact.
+
+If we run the query, we should see that no documents are matched.
+That’s because we are searching for the term “that,” which is a stop word, and
+hence it was removed when indexing the document.
+
+Updating analyzers
+Add description mapping using my_custom_analyzer
+
+PUT /analyzer_test/_mapping
+{
+  "properties": {
+    "description": {
+      "type": "text",
+      "analyzer": "my_custom_analyzer"
+    }
+  }
+}
+
+
+Index a test document
+
+POST /analyzer_test/_doc
+{
+  "description": "Is that Peter's cute-looking dog?"
+}
+
+
+Search query using keyword analyzer
+GET /analyzer_test/_search
+{
+  "query": {
+    "match": {
+      "description": {
+        "query": "that",
+        "analyzer": "keyword"
+      }
+    }
+  }
+}
+
+
+Close analyzer_test index
+
+POST /analyzer_test/_close
+
+Update my_custom_analyzer (remove stop token filter)
+PUT /analyzer_test/_settings
+{
+  "analysis": {
+    "analyzer": {
+      "my_custom_analyzer": {
+        "type": "custom",
+        "tokenizer": "standard",
+        "char_filter": ["html_strip"],
+        "filter": [
+          "lowercase",
+          "asciifolding"
+        ]
+      }
+    }
+  }
+}
+
+
+Open analyzer_test index
+POST /analyzer_test/_open
+
+Retrieve index settings
+GET /analyzer_test/_settings
+
+Reindex documents
+POST /analyzer_test/_update_by_query?conflicts=proceed
+
+Search queries will use the latest version of the analyzer by default, but some documents
+were analyzed using the old version.
+
+In this example, two documents contain the same value for the “description” field
+within the “_source” object, but only one matches the query.
+That’s probably not what you would expect if you were unaware that the analyzer had
+been changed after indexing documents.
+
+
+We could reindex documents into a new index, causing them to be analyzed with the new analyzer.
+There is a simpler approach, though; using the Update By Query API,
+
+**********************************************
+
+Search Methods
+
+writing a search query in the body. This is done by using something called the DSL.
+
+Matching all documents
+GET /products/_search?q=*
+
+Matching documents containing the term Lobster
+GET /products/_search?q=name:Lobster
+
+Matching documents containing the tag Meat
+GET /products/_search?q=tags:Meat
+
+Matching documents containing the tag Meat and name Tuna
+GET /products/_search?q=tags:Meat AND name:Tuna
+
+*******************************************
+
+Introducing the Query DSL
+
+
+Matching all documents
+
+GET /products/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+
+
+****************************************
+
+Understanding the properties
+
+took : number of time it took to retrieve the document in milliseconds
+
+timed_out : boolean tells wheather request was timeout or not .
+
+_shards : total : number of shards searched
+
+_shards :successful :
+
+hits : it contains the search result.
+
+hits.total = total numbers of records that match the search criteria.
+
+max_score : maximum score
+
+
+**************************************
+
+Understanding relevance score
+
+
+Algorithms  Term Frequency / Inverse document Frequency
+
+Okapi BM25
+
+Understanding relevance scores
+
+GET /products/_search
+{
+  "explain": true,
+  "query": {
+    "term": {
+      "name": "lobster"
+    }
+  }
+}
+
+
+**************************************
+
+Debugging unexpected query results
+
+GET /products/_doc/1/_explain
+{
+  "query": {
+    "term": {
+      "name": "lobster"
+    }
+  }
+}
+
+
+**************************************
+
+Query Context
+
+Query can be executed in 2 context 
+
+1. Query COntext
+2. Filter Context
+
+In Filter Context elastic search does not calculate relavant scores.
+
+Filter Context is mostly used in context of dates, status ,ranges etc.
+
+
+If you just want to match any document that include the term **** it regardless of how well they match
+then you can use the filter context.
+
+
+The reason for that is that it's of course more efficient to not calculate relevant scores if you don't
+need them anyways.
+
+**************************************
+
+Full text queries VS term level Queries
+
+Term level query search for exact match
+
+
+Full text queries are analyzed.
+Term level query are not analyzed.
+
+
+Terminable queries search for exact values and are not analyzed whereas full text crews are analyzed
+using the same analyzer.
+That's defined for the field that is being searched.
+
+
+Full Text searchers are analyzed with the same analyzer as was used
+for the inverted index.
+At least that's the default behavior.
+That's why search queries match independent on the casing.
+
+
+Full text queries vs term level queries
+Term level queries are not analyzed
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "name": "lobster"
+    }
+  }
+}
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "name": "Lobster"
+    }
+  }
+}
+Full-text queries are analyzed
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": "Lobster"
+    }
+  }
+}
+
+
+********************************
+
+Term level Queries
+
+
+
+They are mostly used for quering structed data : dates, numbers.
+For searching status for active Field.
+
+
+***************************************
+
+Searching for a term
+
+searching for a document who's isActive field is true.
+
+Matching documents with a value of true for the is_active field
+
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "is_active": true
+    }
+  }
+}
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "is_active": {
+        "value": true
+      }
+    }
+  }
+}
+
+
+
+********************************************
+
+Searching for multiple terms 
+
+
+Instead of providing a single value we provide an array of values.
+The documents will match if it contains any of the supplied values within the field that we specify.
+
+Searching for multiple terms
+
+GET /products/_search
+{
+  "query": {
+    "terms": {
+      "tags.keyword": [ "Soup", "Cake" ]
+    }
+  }
+}
+
+*****************************************
+
+Retrieving documents based on IDs
+
+GET /products/_search
+{
+  "query": {
+    "ids": {
+      "values": [ 1, 2, 3 ]
+    }
+  }
+}
+
+****************************************
+
+Matching documents with range values
+Matching documents with an in_stock field of between 1 and 5, both included
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "in_stock": {
+        "gte": 1,
+        "lte": 5
+      }
+    }
+  }
+}
+Matching documents with a date range
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01",               ||Default date format
+        "lte": "2010/12/31"		   ||Default date format
+      }
+    }
+  }
+}
+Matching documents with a date range and custom date format
+
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "01-01-2010",
+        "lte": "31-12-2010",
+        "format": "dd-MM-yyyy"
+      }
+    }
+  }
+}
+
+*******************************************
+
+you could round the time of midnight by appending slash D to the daily expression.
+
+Working with relative dates
+Subtracting one year from 2010/01/01
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01||-1y"
+      }
+    }
+  }
+}
+Subtracting one year and one day from 2010/01/01
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01||-1y-1d"
+      }
+    }
+  }
+}
+Subtracting one year from 2010/01/01 and rounding by month
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01||-1y/M"
+      }
+    }
+  }
+}
+Rounding by month before subtracting one year from 2010/01/01
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "2010/01/01||/M-1y"
+      }
+    }
+  }
+}
+Rounding by month before subtracting one year from the current date
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "now/M-1y"
+      }
+    }
+  }
+}
+Matching documents with a created field containing the current date or later
+GET /products/_search
+{
+  "query": {
+    "range": {
+      "created": {
+        "gte": "now"
+      }
+    }
+  }
+}
+
+
+
+***********************************
+
+
+Matching documents with non-null values
+
+GET /products/_search
+{
+  "query": {
+    "exists": {
+      "field": "tags"
+    }
+  }
+}
+
+
+***********************************
+
+Matching based on prefixes
+Matching documents containing a tag beginning with Vege
+GET /products/_search
+{
+  "query": {
+    "prefix": {
+      "tags.keyword": "Vege"
+    }
+  }
+}
+
+****************************************
+
+question mark matches any single character
+
+wildcard queries can slower the performance if used at start or end . so be careful while using wildcards.
+
+
+Searching with wildcards
+
+Adding an asterisk for any characters (zero or more)
+
+GET /products/_search
+{
+  "query": {
+    "wildcard": {
+      "tags.keyword": "Veg*ble"
+    }
+  }
+}
+Adding a question mark for any single character
+
+GET /products/_search
+{
+  "query": {
+    "wildcard": {
+      "tags.keyword": "Veg?ble"    
+    }
+  }
+}
+GET /products/_search
+{
+  "query": {
+    "wildcard": {
+      "tags.keyword": "Veget?ble"
+    }
+  }
+}
+
+***************************************
+
+Searching with regular expressions
+
+GET /products/_search
+{
+  "query": {
+    "regexp": {
+      "tags.keyword": "Veg[a-zA-Z]+ble"
+    }
+  }
+}
+
+
+**************************************
+
+Introduction to full text queries
+
+
+Flexible matching with match query
+
+Standard match query
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": "Recipes with pasta or spaghetti"
+    }
+  }
+}
+
+Specifying a boolean operator
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Recipes with pasta or spaghetti",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "pasta or spaghetti",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "pasta spaghetti",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+
+*************************************
+
+Matching phrases
+
+Matching terms in a specific order.
+
+Order of terms matters in the match phase query
+
+
+Matching phrases
+The order of terms matters
+GET /recipe/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": "spaghetti puttanesca"
+    }
+  }
+}
+GET /recipe/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": "puttanesca spaghetti"
+    }
+  }
+}
+
+*************************************
+
+Searching multiple fields
+
+
+GET /recipe/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "pasta",
+      "fields": [ "title", "description" ]
+    }
+  }
+}
+
+
+**************************************
+
+Introduction to compound queries
+
+
+Querying with boolean logic
+
+Bool query is like a where clause in sql
+
+
+Querying with boolean logic
+Adding query clauses to the must key
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        },
+        {
+          "range": {
+            "preparation_time_minutes": {
+              "lte": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+Should queries are intended to boost the score
+
+
+
+Moving the range query to the filter key
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "preparation_time_minutes": {
+              "lte": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+Adding a query clause to the must_not key
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "match": {
+            "ingredients.name": "tuna"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "preparation_time_minutes": {
+              "lte": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+Adding a query clause to the should key
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "match": {
+            "ingredients.name": "tuna"
+          }
+        }
+      ],
+      "should": [
+        {
+          "match": {
+            "ingredients.name": "parsley"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "preparation_time_minutes": {
+              "lte": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+The behavior of should query clauses depends.
+
+What I want to do first is to match documents that contain pasta as an ingredient and optionally parmesan.
+
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "ingredients.name": "pasta"
+          }
+        }
+      ],
+      "should": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        }
+      ]
+    }
+  }
+}
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "ingredients.name": "parmesan"
+          }
+        }
+      ]
+    }
+  }
+} 
+
+
+***********************************
+
+Debugging bool queries with named queries.
+
+GET /recipe/_search.
+{
+    "query": {
+        "bool": {
+          "must": [
+            {
+              "match": {
+                "ingredients.name": {
+                  "query": "parmesan",
+                  "_name": "parmesan_must"
+                }
+              }
+            }
+          ],
+          "must_not": [
+            {
+              "match": {
+                "ingredients.name": {
+                  "query": "tuna",
+                  "_name": "tuna_must_not"
+                }
+              }
+            }
+          ],
+          "should": [
+            {
+              "match": {
+                "ingredients.name": {
+                  "query": "parsley",
+                  "_name": "parsley_should"
+                }
+              }
+            }
+          ],
+          "filter": [
+            {
+              "range": {
+                "preparation_time_minutes": {
+                  "lte": 15,
+                  "_name": "prep_time_filter"
+                }
+              }
+            }
+          ]
+        }
+    }
+}
+
+
+************************************
+
+How match queries work.
+
+
+How the match query works
+The two queries below are equivalent
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": "pasta carbonara"
+    }
+  }
+}
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "title": "pasta"
+          }
+        },
+        {
+          "term": {
+            "title": "carbonara"
+          }
+        }
+      ]
+    }
+  }
+}
+The two queries below are equivalent
+GET /recipe/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "pasta carbonara",
+        "operator": "and"
+      }
+    }
+  }
+}
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "title": "pasta"
+          }
+        },
+        {
+          "term": {
+            "title": "carbonara"
+          }
+        }
+      ]
+    }
+  }
+}
+
+The match also accepts the minimum underscore on a scale match parameter where you can configure how
+
+many of the should must match.
+
+
+******************************************
+
+Joining the documents
+
+that is look at querying relationships between documents.
+
+Remember dont use elastic Search as a primary data Store.
+
+Because for us  Performance > Disk space .
+
+
+Elasticsearch doesn’t support joins like relational databases do, but it does support some simple ways of joining documents.
+
+Elastic search support only simple joins.
+
+
+******************************************
+
+Querying nesting Objects
+
+
+Nested type is used to store array of objects.
+
+Querying nested objects
+
+Creating the index with mapping
+PUT /department
+{
+  "mappings": {  
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "employees": {
+        "type": "nested"
+      }
+    }
+  }
+}
+
+Adding test documents
+PUT /department/_doc/1
+{
+  "name": "Development",
+  "employees": [
+    {
+      "name": "Eric Green",
+      "age": 39,
+      "gender": "M",
+      "position": "Big Data Specialist"
+    },
+    {
+      "name": "James Taylor",
+      "age": 27,
+      "gender": "M",
+      "position": "Software Developer"
+    },
+    {
+      "name": "Gary Jenkins",
+      "age": 21,
+      "gender": "M",
+      "position": "Intern"
+    },
+    {
+      "name": "Julie Powell",
+      "age": 26,
+      "gender": "F",
+      "position": "Intern"
+    },
+    {
+      "name": "Benjamin Smith",
+      "age": 46,
+      "gender": "M",
+      "position": "Senior Software Engineer"
+    }
+  ]
+}
+
+
+PUT /department/_doc/2
+{
+  "name": "HR & Marketing",
+  "employees": [
+    {
+      "name": "Patricia Lewis",
+      "age": 42,
+      "gender": "F",
+      "position": "Senior Marketing Manager"
+    },
+    {
+      "name": "Maria Anderson",
+      "age": 56,
+      "gender": "F",
+      "position": "Head of HR"
+    },
+    {
+      "name": "Margaret Harris",
+      "age": 19,
+      "gender": "F",
+      "position": "Intern"
+    },
+    {
+      "name": "Ryan Nelson",
+      "age": 31,
+      "gender": "M",
+      "position": "Marketing Manager"
+    },
+    {
+      "name": "Kathy Williams",
+      "age": 49,
+      "gender": "F",
+      "position": "Senior Marketing Manager"
+    },
+    {
+      "name": "Jacqueline Hill",
+      "age": 28,
+      "gender": "F",
+      "position": "Junior Marketing Manager"
+    },
+    {
+      "name": "Donald Morris",
+      "age": 39,
+      "gender": "M",
+      "position": "SEO Specialist"
+    },
+    {
+      "name": "Evelyn Henderson",
+      "age": 24,
+      "gender": "F",
+      "position": "Intern"
+    },
+    {
+      "name": "Earl Moore",
+      "age": 21,
+      "gender": "M",
+      "position": "Junior SEO Specialist"
+    },
+    {
+      "name": "Phillip Sanchez",
+      "age": 35,
+      "gender": "M",
+      "position": "SEM Specialist"
+    }
+  ]
+}
+
+
+Querying nested fields
+GET /department/_search
+{
+  "query": {
+    "nested": {
+      "path": "employees",
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "match": {
+                "employees.position": "intern"
+              }
+            },
+            {
+              "term": {
+                "employees.gender.keyword": {
+                  "value": "F"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+************************************
+
+Nested inner hits
+
+GET /department/_search
+{
+  "_source": false,
+  "query": {
+    "nested": {
+      "path": "employees",
+      "inner_hits": {},
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "match": {
+                "employees.position": "intern"
+              }
+            },
+            {
+              "term": {
+                "employees.gender.keyword": {
+                  "value": "F"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+*********************************
+
+Mapping document relationships
+
+PUT /department/_mapping
+{
+  "properties": {
+    "join_field": { 
+      "type": "join",
+      "relations": {
+        "department": "employee"   || here department is parent and employee is children
+      }
+    }
+  }
+}
+
+********************************
+
+Adding documents
+Adding departments
+PUT /department/_doc/1
+{
+  "name": "Development",
+  "join_field": "department"
+}
+PUT /department/_doc/2
+{
+  "name": "Marketing",
+  "join_field": "department"
+}
+Adding employees for departments
+PUT /department/_doc/3?routing=1
+{
+  "name": "Bo Andersen",
+  "age": 28,
+  "gender": "M",
+  "join_field": {
+    "name": "employee",
+    "parent": 1
+  }
+}
+PUT /department/_doc/4?routing=2
+{
+  "name": "John Doe",
+  "age": 44,
+  "gender": "M",
+  "join_field": {
+    "name": "employee",
+    "parent": 2
+  }
+}
+PUT /department/_doc/5?routing=1
+{
+  "name": "James Evans",
+  "age": 32,
+  "gender": "M",
+  "join_field": {
+    "name": "employee",
+    "parent": 1
+  }
+}
+PUT /department/_doc/6?routing=1
+{
+  "name": "Daniel Harris",
+  "age": 52,
+  "gender": "M",
+  "join_field": {
+    "name": "employee",
+    "parent": 1
+  }
+}
+PUT /department/_doc/7?routing=2
+{
+  "name": "Jane Park",
+  "age": 23,
+  "gender": "F",
+  "join_field": {
+    "name": "employee",
+    "parent": 2
+  }
+}
+PUT /department/_doc/8?routing=1
+{
+  "name": "Christina Parker",
+  "age": 29,
+  "gender": "F",
+  "join_field": {
+    "name": "employee",
+    "parent": 1
+  }
+}
+
+
+************************************
+
+Quering by parent Id
+
+GET /department/_search
+{
+  "query": {
+    "parent_id": {
+      "type": "employee",
+      "id": 1
+    }
+  }
+}
+
+*********************************
+
+Querying child documents by parent
+Matching child documents by parent criteria
+
+
+
+the has_parent query
+is more flexible than the parent_id query
+in cases where you don't know the ID of the parent document
+
+GET /department/_search
+{
+  "query": {
+    "has_parent": {
+      "parent_type": "department",
+      "query": {
+        "term": {
+          "name.keyword": "Development"
+        }
+      }
+    }
+  }
+}
+Incorporating the parent documents' relevance scores
+GET /department/_search
+{
+  "query": {
+    "has_parent": {
+      "parent_type": "department",
+      "score": true,
+      "query": {
+        "term": {
+          "name.keyword": "Development"
+        }
+      }
+    }
+  }
+}
+
+
+****************************************
+
+Querying parent by child documents
+Finding parents with child documents matching a bool query
+GET /department/_search
+{
+  "query": {
+    "has_child": {
+      "type": "employee",
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "range": {
+                "age": {
+                  "gte": 50
+                }
+              }
+            }
+          ],
+          "should": [
+            {
+              "term": {
+                "gender.keyword": "M"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+Taking relevance scores into account with score_mode
+
+Score modes in specifying the query   (scores of child documents ) are 
+
+1. min
+2. max
+3. sum
+4. avg
+5. none - Default
+
+
+
+GET /department/_search
+{
+  "query": {
+    "has_child": {
+      "type": "employee",
+      "score_mode": "sum",
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "range": {
+                "age": {
+                  "gte": 50
+                }
+              }
+            }
+          ],
+          "should": [
+            {
+              "term": {
+                "gender.keyword": "M"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+
+Specifying the minimum and maximum number of children
+GET /department/_search
+{
+  "query": {
+    "has_child": {
+      "type": "employee",
+      "score_mode": "sum",
+      "min_children": 2,
+      "max_children": 5,
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "range": {
+                "age": {
+                  "gte": 50
+                }
+              }
+            }
+          ],
+          "should": [
+            {
+              "term": {
+                "gender.keyword": "M"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+Custom sorting link.
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-has-child-query.html#_sorting
+
+
+
+*************************************************
+
+Multi-level relations
+
+
+Company <- Departments <- Employees
+  ^
+  |
+Suppliers
+
+
+
+
+Creating the index with mapping
+PUT /company
+{
+  "mappings": {
+    "properties": {
+      "join_field": { 
+        "type": "join",
+        "relations": {
+          "company": ["department", "supplier"],
+          "department": "employee"
+        }
+      }
+    }
+  }
+}
+Adding a company
+PUT /company/_doc/1
+{
+  "name": "My Company Inc.",
+  "join_field": "company"
+}
+Adding a department
+PUT /company/_doc/2?routing=1
+{
+  "name": "Development",
+  "join_field": {
+    "name": "department",
+    "parent": 1
+  }
+}
+Adding an employee
+PUT /company/_doc/3?routing=1
+{
+  "name": "Bo Andersen",
+  "join_field": {
+    "name": "employee",
+    "parent": 2
+  }
+}
+Adding some more test data
+PUT /company/_doc/4
+{
+  "name": "Another Company, Inc.",
+  "join_field": "company"
+}
+PUT /company/_doc/5?routing=4
+{
+  "name": "Marketing",
+  "join_field": {
+    "name": "department",
+    "parent": 4
+  }
+}
+PUT /company/_doc/6?routing=4
+{
+  "name": "John Doe",
+  "join_field": {
+    "name": "employee",
+    "parent": 5
+  }
+}
+Example of querying multi-level relations
+
+So more explicitly, we want to find companies containing at least one department which has an employee
+named John Doe.
+
+
+GET /company/_search
+{
+  "query": {
+    "has_child": {
+      "type": "department",
+      "query": {
+        "has_child": {
+          "type": "employee",
+          "query": {
+            "term": {
+              "name.keyword": "John Doe"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+That's how to both define and query multilevel relations.
+You just saw an example of how to create a multilevel relationship,
+
+*****************************************
+
+Parent child inner hits
+
+
+Parent/child inner hits
+Including inner hits for the has_child query
+GET /department/_search
+{
+  "query": {
+    "has_child": {
+      "type": "employee",
+      "inner_hits": {},
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "range": {
+                "age": {
+                  "gte": 50
+                }
+              }
+            }
+          ],
+          "should": [
+            {
+              "term": {
+                "gender.keyword": "M"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+Including inner hits for the has_parent query
+GET /department/_search
+{
+  "query": {
+    "has_parent": {
+      "inner_hits": {},
+      "parent_type": "department",
+      "query": {
+        "term": {
+          "name.keyword": "Development"
+        }
+      }
+    }
+  }
+}
+
+******************************************
+
+
+Terms look up Mechcanism
+
+
+Fetching terms from a document.
+
+
+the more terms slower the query .
+
+So if you're dealing with lots of terms, performance may be affected.
+So avoid affecting the stability of the cluster.
+
+elastic search has a term limit of approximately 65000 terms.
+
+Terms lookup mechanism
+Adding test data
+PUT /users/_doc/1
+{
+  "name": "John Roberts",
+  "following" : [2, 3]
+}
+PUT /users/_doc/2
+{
+  "name": "Elizabeth Ross",
+  "following" : []
+}
+PUT /users/_doc/3
+{
+  "name": "Jeremy Brooks",
+  "following" : [1, 2]
+}
+PUT /users/_doc/4
+{
+  "name": "Diana Moore",
+  "following" : [3, 1]
+}
+PUT /stories/_doc/1
+{
+  "user": 3,
+  "content": "Wow look, a penguin!"
+}
+PUT /stories/_doc/2
+{
+  "user": 1,
+  "content": "Just another day at the office... #coffee"
+}
+PUT /stories/_doc/3
+{
+  "user": 1,
+  "content": "Making search great again! #elasticsearch #elk"
+}
+PUT /stories/_doc/4
+{
+  "user": 4,
+  "content": "Had a blast today! #rollercoaster #amusementpark"
+}
+PUT /stories/_doc/5
+{
+  "user": 4,
+  "content": "Yay, I just got hired as an Elasticsearch consultant - so excited!"
+}
+PUT /stories/_doc/6
+{
+  "user": 2,
+  "content": "Chilling at the beach @ Greece #vacation #goodtimes"
+}
+
+Querying stories from a user's followers
+
+Now we want to display the stories for a given user, which will be the stories of the users he or she
+
+is following.
+GET /stories/_search
+{
+  "query": {
+    "terms": {
+      "user": {
+        "index": "users",
+        "id": "1",
+        "path": "following"
+      }
+    }
+  }
+}
+
+********************************
+
+Limitation of using join.
+
+1. Documents must be stored within same index.
+i.e This means that we cannot have departments stored in one index, and employees in another
+
+2. Parents and child must be indexed on same shard.
+
+3. Only one join field per index.
+
+4.You can also always add a new child to a relation, but only if the relation is already a parent.
+
+5. a document can only have one parent.
+This means that an employee can only belong to one department, for instance.
+A document can, however, have multiple children, so a department can have multiple employees
+
+
+*******************************
+
+Joining Field Performance considerations
+
+1. Join queries are expensive in terms of performance and should be avoided whenever possible.
+
+2. Avoid  join fields whenever possible, except for few scenarios.
+
+3.Apart from that, if you make use of multi-level relations, then each level of relation adds
+  an overhead to your queries, so you should almost always avoid this.
+
+4.That being said, there is a scenario where it makes sense to use a “join” field and
+  where the performance will still be good.That’s if you have a one-to-many relationship 
+  between two document types and there are significantly
+  more of one type than the other.
+
+5.Having recipes as the parent documents and ingredients as child documents, is a good
+  candidate for using a “join” field, because there are going to be significantly more ingredients
+  than recipes.
+
+6.The other question is: if “join” fields are usually not a good idea to use, then how
+  do we map document relationships properly?
+  Well, for one, we have the “nested” data type, but that might not always suit your needs.
+
+7.So generally speaking, you shouldn’t map document relationships.
+  Elasticsearch is very efficient for searching through tons of data, but Elasticsearch is
+  a very different technology than a relational database, for instance.
+  This means that you should store data as a structure that is optimized for efficient searching.
+
+
+*******************************************************
+
+Controlling Query Result
+
+Specifying the result format
+
+Returning results as YAML
+GET /recipe/_search?format=yaml
+{
+    "query": {
+      "match": { "title": "pasta" }
+    }
+}
+Returning pretty JSON
+GET /recipe/_search?pretty
+{
+    "query": {
+      "match": { "title": "pasta" }
+    }
+}
+
+
+*****************************************************
+
+Source Filtering
+
+By default, the whole contents of the field are returned.
+
+
+Source filtering
+Excluding the _source field altogether
+GET /recipe/_search
+{
+  "_source": false,
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+Only returning the created field
+GET /recipe/_search
+{
+  "_source": "created",
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+Only returning an object's key
+GET /recipe/_search
+{
+  "_source": "ingredients.name",
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+Returning all of an object's keys
+GET /recipe/_search
+{
+  "_source": "ingredients.*",
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+Returning the ingredients object with all keys, and the servings field
+GET /recipe/_search
+{
+  "_source": [ "ingredients.*", "servings" ],
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+Including all of the ingredients object's keys, except the name key
+GET /recipe/_search
+{
+  "_source": {
+    "includes": "ingredients.*",
+    "excludes": "ingredients.name"
+  },
+  "query": {
+    "match": { "title": "pasta" }
+  }
+}
+
+**************************************************
+
+Specifying the result Size
+
+I just want to mention that the default result size is 10 so you only need to use the size parameter
+if you want a different number of hits to be returned.
+
+
+Specifying the result size
+
+Using a query parameter
+
+GET /recipe/_search?size=2
+{
+  "_source": false,
+  "query": {
+    "match": {
+      "title": "pasta"
+    }
+  }
+}
+
+
+Using a parameter within the request body
+
+GET /recipe/_search
+{
+  "_source": false,
+  "size": 2,
+  "query": {
+    "match": {
+      "title": "pasta"
+    }
+  }
+}
+
+
+********************************
+
+Specifying an offset  //  used in pagination 
+
+what about retrieving the next page of results?
+
+If the size parameter is said to ten, it's likely that we want to retrieve the next 10 results at some point.
+
+Specifying an offset with the from parameter
+GET /recipe/_search
+{
+  "_source": false,
+  "size": 2,
+  "from": 2,
+  "query": {
+    "match": {
+      "title": "pasta"
+    }
+  }
+}
+
+************************************
+
+Pagination
+
+Total pages = ceil(Total Hits)/(page_size);
+
+
+from  = ( page_size * (page_number -1) )
+
+
+This approach is limited to 10000 results.
+The point is that since each first query is stateless the results are always based on the latest data
+and not the data that was available when running the first query.
+
+
+*********************************
+
+Sorting results in ElasticSearch
+
+Its is similar to orderBy clause in relational DataBase.
+
+Default sort order is ascending.
+
+So all we need to do is to specify the name of the field you want to sort by.
+
+SortBy preparation time first and then by created_on Field.
+
+Sorting results
+
+Sorting by ascending order (implicitly)
+GET /recipe/_search
+{
+  "_source": false,
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    "preparation_time_minutes"
+  ]
+}
+
+Sorting by descending order
+GET /recipe/_search
+{
+  "_source": "created",
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    { "created": "desc" }
+  ]
+}
+Sorting by multiple fields
+GET /recipe/_search
+{
+  "_source": [ "preparation_time_minutes", "created" ],
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    { "preparation_time_minutes": "asc" },
+    { "created": "desc" }
+  ]
+}
+
+********************************
+
+Sorting by multi-value Fields
+
+
+Min and Max work with dates as well
+
+Sorting by multi-value fields
+Sorting by the average rating (descending)
+GET /recipe/_search
+{
+  "_source": "ratings",
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "ratings": {
+        "order": "desc",
+        "mode": "avg"
+      }
+    }
+  ]
+}
+
+********************************
+
+Filters
+
+Adding a filter clause to the bool query
+GET /recipe/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "pasta"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "preparation_time_minutes": {
+              "lte": 15
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+*************************************
+
+Introduction to Aggregrations.
+
+Aggregations are way of grouping and extracting statistics and summaries from your data.
+
+
+Introduction to aggregations
+Adding order index and mappings
+PUT /order
+{
+  "mappings": {
+    "properties": {
+      "purchased_at": {
+        "type": "date"
+      },
+      "lines": {
+        "type": "nested",
+        "properties": {
+          "product_id": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "double"
+          },
+          "quantity": {
+            "type": "short"
+          }
+        }
+      },
+      "total_amount": {
+        "type": "double"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "sales_channel": {
+        "type": "keyword"
+      },
+      "salesman": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "text"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+*******************************
+
+Metric Aggregations
+
+Single value numeric metric Aggregations.
+
+Multi-value numeric metric Aggregations.
+
+
+Metric aggregations
+Calculating statistics with sum, avg, min, and max aggregations
+
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "total_sales": {
+      "sum": {
+        "field": "total_amount"
+      }
+    },
+    "avg_sale": {
+      "avg": {
+        "field": "total_amount"
+      }
+    },
+    "min_sale": {
+      "min": {
+        "field": "total_amount"
+      }
+    },
+    "max_sale": {
+      "max": {
+        "field": "total_amount"
+      }
+    }
+  }
+}
+
+
+*****************************************
+
+Cardinality 
+
+Count number of distinct values for a field .
+
+Retrieving the number of distinct values
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "total_salesmen": {
+      "cardinality": {
+        "field": "salesman.id"
+      }
+    }
+  }
+}
+
+*******************************************
+
+Value count is the number of records used in the query
+
+Retrieving the number of values
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "values_count": {
+      "value_count": {
+        "field": "total_amount"
+      }
+    }
+  }
+}
+Using stats aggregation for common statistics
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "amount_stats": {
+      "stats": {
+        "field": "total_amount"
+      }
+    }
+  }
+}
+
+***********************************
+
+Bucket Aggregation
+
+
+Elastic search returns the top unique terms.
+So if you have many different terms then some of them will not appear in the results.
+
+The sum_other_doc_count returns the count of documents that were not present in the response but present in
+bucket.
+e.g if we have 50 bucket.
+
+But what if we have documents that don't contain the status field at all or have a value of Know by
+adding a missing parameter we can specify the name of a bucket in which such documents should be placed.
+So let's add this parameter name missing and the value will be the name of the bucket.
+
+it's also possible to order the buckets in various ways including by sub aggregations 
+
+Introduction to bucket aggregations
+
+this is useful when we want count for group of documents
+
+Creating a bucket for each status value
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status"
+      }
+    }
+  }
+}
+Including 20 terms instead of the default 10
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status",
+        "size": 20
+      }
+    }
+  }
+}
+Aggregating documents with missing field (or NULL)
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status",
+        "size": 20,
+        "missing": "N/A"
+      }
+    }
+  }
+}
+Changing the minimum document count for a bucket to be created
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status",
+        "size": 20,
+        "missing": "N/A",
+        "min_doc_count": 0
+      }
+    }
+  }
+}
+
+Ordering the buckets
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status",
+        "size": 20,
+        "missing": "N/A",
+        "min_doc_count": 0,
+        "order": {
+          "_key": "asc"
+        }
+      }
+    }
+  }
+}
+
+**********************************
+
+Documents counts are approximate
+
+doc_count_error_upper_bound
+
+So the key contains a number representing the maximum possible document count for a term that was not
+part of the final results.
+
+you should keep the size parameter, the minimum value of ten, even if you only
+need to top three terms, for example, because the higher the value, the more accurate the results.
+
+
+************************************
+
+Nested Aggregations
+
+Bucket aggregation support nested aggregation
+
+bucket aggregations can contain other bucket aggregations or metric aggregations in the
+same way that compound queries can contain other compound queries.
+
+Nested aggregations
+
+Retrieving statistics for each status
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status"
+      },
+      "aggs": {
+        "status_stats": {
+          "stats": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+Narrowing down the aggregation context
+
+GET /order/_search
+{
+  "size": 0,
+  "query": {
+    "range": {
+      "total_amount": {
+        "gte": 100
+      }
+    }
+  },
+  "aggs": {
+    "status_terms": {
+      "terms": {
+        "field": "status"
+      },
+      "aggs": {
+        "status_stats": {
+          "stats": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+So to recap metric aggregations produce simple results and cannot contain sub locations bucket aggregations.
+
+On the other hand may contain some aggregations which then operate on the buckets produced by the parent
+
+bucket aggregation aggregations run based on the context in which they're defined aggregations added
+
+at the top level of the root aggregation object run in the context of the request query and sub aggregations
+
+run in the context of the parent aggregation you can nest both metric and bucket aggregations within
+
+bucket aggregations
+
+
+*******************************
+
+Filtering documents
+
+Before creating bucket for aggregation.
+
+You can then use a filter to narrow down the set of documents that an aggregation will use as a context.
+
+Filtering out documents with low total_amount
+
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "low_value": {
+      "filter": {
+        "range": {
+          "total_amount": {
+            "lt": 50
+          }
+        }
+      }
+    }
+  }
+}
+
+
+Aggregating on the bucket of remaining documents
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "low_value": {
+      "filter": {
+        "range": {
+          "total_amount": {
+            "lt": 50
+          }
+        }
+      },
+      "aggs": {
+        "avg_amount": {
+          "avg": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+*****************************************
+
+Defining bucket rules with filters
+
+
+Placing documents into buckets based on criteria
+GET /recipe/_search
+{
+  "size": 0,
+  "aggs": {
+    "my_filter": {
+      "filters": {
+        "filters": {
+          "pasta": {
+            "match": {
+              "title": "pasta"
+            }
+          },
+          "spaghetti": {
+            "match": {
+              "title": "spaghetti"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+Calculate average ratings for buckets
+GET /recipe/_search
+{
+  "size": 0,
+  "aggs": {
+    "my_filter": {
+      "filters": {
+        "filters": {
+          "pasta": {
+            "match": {
+              "title": "pasta"
+            }
+          },
+          "spaghetti": {
+            "match": {
+              "title": "spaghetti"
+            }
+          }
+        }
+      },
+      "aggs": {
+        "avg_rating": {
+          "avg": {
+            "field": "ratings"
+          }
+        }
+      }
+    }
+  }
+}
+
+*******************************************
+
+Range Aggregations
+
+
+Range aggregations
+range aggregation
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "amount_distribution": {
+      "range": {
+        "field": "total_amount",
+        "ranges": [
+          {
+            "to": 50
+          },
+          {
+            "from": 50,
+            "to": 100
+          },
+          {
+            "from": 100
+          }
+        ]
+      }
+    }
+  }
+}
+date_range aggregation
+
+From value is included and to value is excluded.
+
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "purchased_ranges": {
+      "date_range": {
+        "field": "purchased_at",
+        "ranges": [
+          {
+            "from": "2016-01-01",
+            "to": "2016-01-01||+6M"
+          },
+          {
+            "from": "2016-01-01||+6M",
+            "to": "2016-01-01||+1y"
+          }
+        ]
+      }
+    }
+  }
+}
+Specifying the date format
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "purchased_ranges": {
+      "date_range": {
+        "field": "purchased_at",
+        "format": "yyyy-MM-dd",
+        "ranges": [
+          {
+            "from": "2016-01-01",
+            "to": "2016-01-01||+6M"
+          },
+          {
+            "from": "2016-01-01||+6M",
+            "to": "2016-01-01||+1y"
+          }
+        ]
+      }
+    }
+  }
+}
+Enabling keys for the buckets
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "purchased_ranges": {
+      "date_range": {
+        "field": "purchased_at",
+        "format": "yyyy-MM-dd",
+        "keyed": true,
+        "ranges": [
+          {
+            "from": "2016-01-01",
+            "to": "2016-01-01||+6M"
+          },
+          {
+            "from": "2016-01-01||+6M",
+            "to": "2016-01-01||+1y"
+          }
+        ]
+      }
+    }
+  }
+}
+Defining the bucket keys
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "purchased_ranges": {
+      "date_range": {
+        "field": "purchased_at",
+        "format": "yyyy-MM-dd",
+        "keyed": true,
+        "ranges": [
+          {
+            "from": "2016-01-01",
+            "to": "2016-01-01||+6M",
+            "key": "first_half"
+          },
+          {
+            "from": "2016-01-01||+6M",
+            "to": "2016-01-01||+1y",
+            "key": "second_half"
+          }
+        ]
+      }
+    }
+  }
+}
+Adding a sub-aggregation
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "purchased_ranges": {
+      "date_range": {
+        "field": "purchased_at",
+        "format": "yyyy-MM-dd",
+        "keyed": true,
+        "ranges": [
+          {
+            "from": "2016-01-01",
+            "to": "2016-01-01||+6M",
+            "key": "first_half"
+          },
+          {
+            "from": "2016-01-01||+6M",
+            "to": "2016-01-01||+1y",
+            "key": "second_half"
+          }
+        ]
+      },
+      "aggs": {
+        "bucket_stats": {
+          "stats": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+****************************************
+
+Histograms
+
+
+Using histogram we can specify an interval for Aggregation
+
+The value is rounded to nearest bucket.
+
+min_doc_count : 1 means bucket will only be created if there are atleast 1 document for it.
+
+
+Distribution of total_amount with interval 25
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "amount_distribution": {
+      "histogram": {
+        "field": "total_amount",
+        "interval": 25
+      }
+    }
+  }
+}
+Requiring minimum 1 document per bucket
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "amount_distribution": {
+      "histogram": {
+        "field": "total_amount",
+        "interval": 25,
+        "min_doc_count": 1
+      }
+    }
+  }
+}
+Specifying fixed bucket boundaries
+GET /order/_search
+{
+  "size": 0,
+  "query": {
+    "range": {
+      "total_amount": {
+        "gte": 100
+      }
+    }
+  },
+  "aggs": {
+    "amount_distribution": {
+      "histogram": {
+        "field": "total_amount",
+        "interval": 25,
+        "min_doc_count": 0,
+        "extended_bounds": {
+          "min": 0,
+          "max": 500
+        }
+      }
+    }
+  }
+}
+Aggregating by month with the date_histogram aggregation
+GET /order/_search
+{
+  "size": 0,
+  "aggs": {
+    "orders_over_time": {
+      "date_histogram": {
+        "field": "purchased_at",
+        "calendar_interval": "month"
+      }
+    }
+  }
+}
+
+
+********************************
+
+Global aggregation
+
+even if we have included a query which narrows down the set of documents that
+an aggregation would normally use, we can get access to all documents as if the query was not there.
+
+Global aggregations are not influenced by search query.i.e impliclitly match_all (query).
+
+Break out of the aggregation context
+GET /order/_search
+{
+  "query": {
+    "range": {
+      "total_amount": {
+        "gte": 100
+      }
+    }
+  },
+  "size": 0,
+  "aggs": {
+    "all_orders": {
+      "global": { },
+      "aggs": {
+        "stats_amount": {
+          "stats": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+Adding aggregation without global context
+GET /order/_search
+{
+  "query": {
+    "range": {
+      "total_amount": {
+        "gte": 100
+      }
+    }
+  },
+  "size": 0,
+  "aggs": {
+    "all_orders": {
+      "global": { },
+      "aggs": {
+        "stats_amount": {
+          "stats": {
+            "field": "total_amount"
+          }
+        }
+      }
+    },
+    "stats_expensive": {
+      "stats": {
+        "field": "total_amount"
+      }
+    }
+  }
+}
+
+*************************************
+
+
+Missing field values
+
+What if we're aggregating on a status field and we have some documents that do not have this field?
+Or what if the value is null?
+
+it creates a bucket with the orders
+that either don't have a status field at all or have a value of null.
+
+
+
+Adding test documents
+POST /order/_doc/1001
+{
+  "total_amount": 100
+}
+POST /order/_doc/1002
+{
+  "total_amount": 200,
+  "status": null
+}
+Aggregating documents with missing field value
+GET /order/_doc/_search
+{
+  "size": 0,
+  "aggs": {
+    "orders_without_status": {
+      "missing": {
+        "field": "status.keyword"
+      }
+    }
+  }
+}
+Combining missing aggregation with other aggregations
+GET /order/_doc/_search
+{
+  "size": 0,
+  "aggs": {
+    "orders_without_status": {
+      "missing": {
+        "field": "status.keyword"
+      },
+      "aggs": {
+        "missing_sum": {
+          "sum": {
+            "field": "total_amount"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+Deleting test documents
+DELETE /order/_doc/1001
+DELETE /order/_doc/1002
+
+
+*****************************************
+
+Aggregating nested objects
+
+I want to find the lowest age among all of the employees across all of the departments.
+we also need to handle nested fields a little differently in regards to aggregations.
+
+we need to use the nested aggregation, which enables us to aggregate Nested documents
+
+GET /department/_search
+{
+  "size": 0,
+  "aggs": {
+    "employees": {
+      "nested": {
+        "path": "employees"
+      }
+    }
+  }
+}
+GET /department/_search
+{
+  "size": 0,
+  "aggs": {
+    "employees": {
+      "nested": {
+        "path": "employees"
+      },
+      "aggs": {
+        "minimum_age": {
+          "min": {
+            "field": "employees.age"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+***********************************
+
+Improving  searches
+
+
+Proximity Searches
+
+For phrases with match phrase query when searching for phrases, each of the phrases terms 
+must appear in exactly that order for document to match.
+
+If we have the phrase spicy sauce, we might also want to match a document containing the terms spicy
+tomato sauce in that order.
+
+So we might want to relax the constraint and allow for a number of terms in between the terms, in the
+phrase that we're searching for.
+
+
+suppose that we want to allow a term in between the spicy and sauce terms.
+The value for this parameter should be an integer representing how far apart terms are allowed to be
+while still being considered a match.
+How far apart refers to how many times a term may be moved for document to match?
+
+
+proximity search, how close the
+terms that we specify in the query are together with the matching documents is referred to as proximity.
+
+
+Proximity searches
+Adding test documents
+PUT /proximity/_doc/1
+{
+  "title": "Spicy Sauce"
+}
+PUT /proximity/_doc/2
+{
+  "title": "Spicy Tomato Sauce"
+}
+PUT /proximity/_doc/3
+{
+  "title": "Spicy Tomato and Garlic Sauce"
+}
+PUT /proximity/_doc/4
+{
+  "title": "Tomato Sauce (spicy)"
+}
+PUT /proximity/_doc/5
+{
+  "title": "Spicy and very delicious Tomato Sauce"
+}
+Adding the slop parameter to a match_phrase query
+GET /proximity/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "spicy sauce",
+        "slop": 1
+      }
+    }
+  }
+}
+GET /proximity/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "spicy sauce",
+        "slop": 2
+      }
+    }
+  }
+}
+
+
+************************************
+
+
+Affecting relevance scoring with proximity
+
+So this approach does not guarantee that documents with a close proximity are scored highest.
+But it provides an alternative to boost the relavance score.
+
+
+A simple match query within a bool query
+GET /proximity/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": {
+              "query": "spicy sauce"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+Boosting relevance based on proximity
+GET /proximity/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": {
+              "query": "spicy sauce"
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "match_phrase": {
+            "title": {
+              "query": "spicy sauce"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+Adding the slop parameter
+GET /proximity/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": {
+              "query": "spicy sauce"
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "match_phrase": {
+            "title": {
+              "query": "spicy sauce",
+              "slop": 5
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+******************************************
+
+Fuzzy match Query ( handling typos )
+
+What if the user makes a typo or just make spelling mistakes?
+
+This is easy with ElasticSearch by using something called fussiness.
+
+Fustiness is implemented by calculating something called the Levenstein distance, which I'll just refer
+to as the edit distance.
+
+
+The maximum the edit distance can be two.
+
+First of all, studies have shown that 80 percent of human misspellings can be corrected with an edit
+distance of just one.
+So a value of one or two will catch almost all mistakes.
+
+Leaving the field AUTO is generally preferred.
+
+Transpositions   LVi=iE === LIVE
+
+
+We can disable transpositions , but by default they are enabled.
+
+Fuzzy match query
+Searching with fuzziness set to auto
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": {
+        "query": "l0bster",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": {
+        "query": "lobster",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+Fuzziness is per term (and specifying an integer)
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": {
+        "query": "l0bster love",
+        "operator": "and",
+        "fuzziness": 1
+      }
+    }
+  }
+}
+Switching letters around with transpositions
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": {
+        "query": "lvie",
+        "fuzziness": 1
+      }
+    }
+  }
+}
+Disabling transpositions
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "name": {
+        "query": "lvie",
+        "fuzziness": 1,
+        "fuzzy_transpositions": false
+      }
+    }
+  }
+}
+
+
+*********************************
+
+Fuzzy Query
+
+Fuzery Query is a term level Query . this means that the first query is not analyzed.
+
+That is the reason match query is preferred over the Fuzzy Query.
+
+unless there is specific reason prefer to use match query with fuziness parameter.
+
+
+fuzzy query
+GET /products/_search
+{
+  "query": {
+    "fuzzy": {
+      "name": {
+        "value": "LOBSTER",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+GET /products/_search
+{
+  "query": {
+    "fuzzy": {
+      "name": {
+        "value": "lobster",
+        "fuzziness": "auto"
+      }
+    }
+  }
+}
+
+
+*********************************************
+
+Adding synonyms
+
+
+
+Creating index with custom analyzer
+PUT /synonyms
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "synonym_test": {
+          "type": "synonym", 
+          "synonyms": [
+            "awful => terrible",
+            "awesome => great, super",
+            "elasticsearch, logstash, kibana => elk",
+            "weird, strange"
+          ]
+        }
+      },
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "synonym_test"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "description": {
+        "type": "text",
+        "analyzer": "my_analyzer"
+      }
+    }
+  }
+}
+Testing the analyzer (with synonyms)
+POST /synonyms/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "awesome"
+}
+POST /synonyms/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Elasticsearch"
+}
+POST /synonyms/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "weird"
+}
+POST /synonyms/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Elasticsearch is awesome, but can also seem weird sometimes."
+}
+Adding a test document
+POST /synonyms/_doc
+{
+  "description": "Elasticsearch is awesome, but can also seem weird sometimes."
+}
+Searching the index for synonyms
+GET /synonyms/_search
+{
+  "query": {
+    "match": {
+      "description": "great"
+    }
+  }
+}
+GET /synonyms/_search
+{
+  "query": {
+    "match": {
+      "description": "awesome"
+    }
+  }
+}
+
+
+******************************************
+
+
+Adding synonyms from file
+
+what if we have large number of synonyms.
+
+
+Adding index with custom analyzer
+PUT /synonyms
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "synonym_test": {
+          "type": "synonym",
+          "synonyms_path": "analysis/synonyms.txt"
+        }
+      },
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "synonym_test"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "description": {
+        "type": "text",
+        "analyzer": "my_analyzer"
+      }
+    }
+  }
+}
+Synonyms file (config/analysis/synonyms.txt)
+# This is a comment
+
+awful => terrible
+awesome => great, super
+elasticsearch, logstash, kibana => elk
+weird, strange
+Testing the analyzer
+POST /synonyms/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Elasticsearch"
+}
+
+
+** Run the update by query api if we add  the synonym to the index, the synonym will be in effect after the Update Query API.
+
+**********************************
+
+Highlighting matches in fields
+
+
+Adding a test document
+PUT /highlighting/_doc/1
+{
+  "description": "Let me tell you a story about Elasticsearch. It's a full-text search engine that is built on Apache Lucene. It's really easy to use, but also packs lots of advanced features that you can use to tweak its searching capabilities. Lots of well-known and established companies use Elasticsearch, and so should you!"
+}
+
+
+Highlighting matches within the description field
+
+GET /highlighting/_search
+{
+  "_source": false,
+  "query": {
+    "match": { "description": "Elasticsearch story" }
+  },
+  "highlight": {
+    "fields": {
+      "description" : {}
+    }
+  }
+}
+
+
+Specifying a custom tag
+
+
+GET /highlighting/_search
+{
+  "_source": false,
+  "query": {
+    "match": { "description": "Elasticsearch story" }
+  },
+  "highlight": {
+    "pre_tags": [ "<strong>" ],
+    "post_tags": [ "</strong>" ],
+    "fields": {
+      "description" : {}
+    }
+  }
+}
+
+
+******************************
+
+Stemming
+
+Inverted index also store the offset of the words.
+
+Creating a test index
+
+PUT /stemming_test
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "synonym_test": {
+          "type": "synonym",
+          "synonyms": [
+            "firm => company",
+            "love, enjoy"
+          ]
+        },
+        "stemmer_test" : {
+          "type" : "stemmer",
+          "name" : "english"
+        }
+      },
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "synonym_test",
+            "stemmer_test"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "description": {
+        "type": "text",
+        "analyzer": "my_analyzer"
+      }
+    }
+  }
+}
+
+
+Adding a test document
+
+PUT /stemming_test/_doc/1
+{
+  "description": "I love working for my firm!"
+}
+
+Matching the document with the base word (work)
+
+
+GET /stemming_test/_search
+{
+  "query": {
+    "match": {
+      "description": "enjoy work"
+    }
+  }
+}
+
+The query is stemmed, so the document still matches
+
+GET /stemming_test/_search
+{
+  "query": {
+    "match": {
+      "description": "love working"
+    }
+  }
+}
+
+
+Synonyms and stemmed words are still highlighted
+
+GET /stemming_test/_search
+{
+  "query": {
+    "match": {
+      "description": "enjoy work"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "description": {}
+    }
+  }
+}
+
+************************************
